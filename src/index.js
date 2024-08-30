@@ -56,54 +56,12 @@ const DraggableBoard = ({
 
   const scrollViewRef = useRef();
   const scrollOffset = useRef(0);
-  const hoverRowItem = useRef();
+  const hoverRowItem = useRef(null);
 
   useEffect(() => {
-    repository.setReload(() => setForceUpdate(prevState => !prevState));
+    repository.setReload(() => setForceUpdate((prevState) => !prevState));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // const onGestureEvent = useAnimatedGestureHandler({
-  //   onStart: (_, context) => {
-  //     context.startX = translateX.value;
-  //     context.startY = translateY.value;
-  //   },
-  //   onActive: (event, context) => {
-  //     translateX.value = context.startX + event.translationX;
-  //     translateY.value = context.startY + event.translationY;
-  //     absoluteX.value = event.absoluteX;
-  //     absoluteY.value = event.absoluteY;
-  //     runOnJS(handleRowPosition)([
-  //       translateX.value,
-  //       translateY.value
-  //     ]);
-  //     runOnJS(handleColumnPosition)([
-  //       absoluteX.value,
-  //       absoluteY.value
-  //     ]);
-  //   },
-  //   onEnd: () => {
-  //     translateX.value = withSpring(0);
-  //     translateY.value = withSpring(0);
-  //     absoluteX.value = withSpring(0);
-  //     absoluteY.value = withSpring(0);
-  //
-  //     runOnJS(setHoverComponent)(null);
-  //     runOnJS(setMovingMode)(false);
-  //
-  //     if (onDragEnd) {
-  //       onDragEnd(
-  //         hoverRowItem.current.oldColumnId,
-  //         hoverRowItem.current.columnId,
-  //         hoverRowItem.current,
-  //       );
-  //       repository.updateOriginalData();
-  //     }
-  //
-  //     repository.showRow(hoverRowItem.current);
-  //     hoverRowItem.current = null;
-  //   }
-  // });
 
   const pan = Gesture.Pan()
     .minDistance(1)
@@ -135,21 +93,29 @@ const DraggableBoard = ({
       runOnJS(setMovingMode)(false);
 
       if (onDragEnd) {
-        onDragEnd(
-          hoverRowItem.current.oldColumnId,
-          hoverRowItem.current.columnId,
-          hoverRowItem.current,
+        const currentHoverItem = { ...hoverRowItem.current }; // create new object
+        runOnJS(onDragEnd)(
+          currentHoverItem.oldColumnId,
+          currentHoverItem.columnId,
+          currentHoverItem
         );
         repository.updateOriginalData();
       }
 
       repository.showRow(hoverRowItem.current);
       hoverRowItem.current = null;
-    })
+    });
 
   const listenRowChangeColumn = (fromColumnId, toColumnId) => {
-    hoverRowItem.current.columnId = toColumnId;
-    hoverRowItem.current.oldColumnId = fromColumnId;
+    runOnJS(updateHoverRowItem)(fromColumnId, toColumnId);
+  };
+
+  const updateHoverRowItem = (fromColumnId, toColumnId) => {
+    hoverRowItem.current = {
+      ...hoverRowItem.current,
+      columnId: toColumnId,
+      oldColumnId: fromColumnId,
+    };
   };
 
   const handleRowPosition = ([x, y]) => {
@@ -174,32 +140,25 @@ const DraggableBoard = ({
         } else if (x < xScrollThreshold) {
           scrollOffset.current -= SCROLL_STEP;
           scrollViewRef.current.scrollTo({
-            x: scrollOffset.current / dragSpeedFactor,
+            x: scrollOffset.current * dragSpeedFactor,
             y: 0,
             animated: true
           });
           repository.measureColumnsLayout();
         }
-
-        // handle scroll inside item
-        // if (y + SCROLL_THRESHOLD > columnAtPosition.layout.y) {
-        //   repository.columns[columnAtPosition.id].scrollOffset(y + SCROLL_STEP);
-        // } else if (y < SCROLL_THRESHOLD) {
-        //   repository.columns[columnAtPosition.id].scrollOffset(y - SCROLL_STEP);
-        // }
       }
     }
   };
 
   const handleColumnPosition = ([x, y]) => {
-    //
+    // Add column position handling logic if any
   };
 
-  const onScroll = event => {
+  const onScroll = (event) => {
     scrollOffset.current = event.nativeEvent.contentOffset.x;
   };
 
-  const onScrollEnd = event => {
+  const onScrollEnd = (event) => {
     scrollOffset.current = event.nativeEvent.contentOffset.x;
     repository.measureColumnsLayout();
   };
@@ -248,13 +207,13 @@ const DraggableBoard = ({
     rowItem.setHidden(true);
     repository.hideRow(rowItem);
     await rowItem.measureLayout();
-    hoverRowItem.current = { ...rowItem };
+    hoverRowItem.current = { ...rowItem }; // create new object
 
     setMovingMode(true);
     setHoverComponent(hoverItem);
   };
 
-  const drag = column => {
+  const drag = (column) => {
     const hoverColumn = renderColumnWrapper({
       move: moveItem,
       item: column.data,
@@ -290,8 +249,8 @@ const DraggableBoard = ({
         drag: () => drag(column),
         layoutProps: {
           key,
-          ref: ref => repository.updateColumnRef(column.id, ref),
-          onLayout: layout => repository.updateColumnLayout(column.id),
+          ref: (ref) => repository.updateColumnRef(column.id, ref),
+          onLayout: (layout) => repository.updateColumnLayout(column.id),
         },
       });
     });
@@ -313,7 +272,6 @@ const DraggableBoard = ({
             onScrollEndDrag={onScrollEnd}
             onMomentumScrollEnd={onScrollEnd}>
             {renderColumns()}
-
             {Utils.isFunction(accessoryRight) ? accessoryRight() : accessoryRight}
           </ScrollView>
           {renderHoverComponent()}
