@@ -6,7 +6,7 @@ import React, {
 } from 'react';
 import {
   PanGestureHandler,
-  GestureHandlerRootView
+  GestureHandlerRootView, GestureDetector, Gesture
 } from 'react-native-gesture-handler';
 import {
   ScrollView
@@ -63,12 +63,55 @@ const DraggableBoard = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onGestureEvent = useAnimatedGestureHandler({
-    onStart: (_, context) => {
+  // const onGestureEvent = useAnimatedGestureHandler({
+  //   onStart: (_, context) => {
+  //     context.startX = translateX.value;
+  //     context.startY = translateY.value;
+  //   },
+  //   onActive: (event, context) => {
+  //     translateX.value = context.startX + event.translationX;
+  //     translateY.value = context.startY + event.translationY;
+  //     absoluteX.value = event.absoluteX;
+  //     absoluteY.value = event.absoluteY;
+  //     runOnJS(handleRowPosition)([
+  //       translateX.value,
+  //       translateY.value
+  //     ]);
+  //     runOnJS(handleColumnPosition)([
+  //       absoluteX.value,
+  //       absoluteY.value
+  //     ]);
+  //   },
+  //   onEnd: () => {
+  //     translateX.value = withSpring(0);
+  //     translateY.value = withSpring(0);
+  //     absoluteX.value = withSpring(0);
+  //     absoluteY.value = withSpring(0);
+  //
+  //     runOnJS(setHoverComponent)(null);
+  //     runOnJS(setMovingMode)(false);
+  //
+  //     if (onDragEnd) {
+  //       onDragEnd(
+  //         hoverRowItem.current.oldColumnId,
+  //         hoverRowItem.current.columnId,
+  //         hoverRowItem.current,
+  //       );
+  //       repository.updateOriginalData();
+  //     }
+  //
+  //     repository.showRow(hoverRowItem.current);
+  //     hoverRowItem.current = null;
+  //   }
+  // });
+
+  const pan = Gesture.Pan()
+    .minDistance(1)
+    .onStart((_, context) => {
       context.startX = translateX.value;
       context.startY = translateY.value;
-    },
-    onActive: (event, context) => {
+    })
+    .onUpdate((event, context) => {
       translateX.value = context.startX + event.translationX;
       translateY.value = context.startY + event.translationY;
       absoluteX.value = event.absoluteX;
@@ -81,8 +124,8 @@ const DraggableBoard = ({
         absoluteX.value,
         absoluteY.value
       ]);
-    },
-    onEnd: () => {
+    })
+    .onEnd(() => {
       translateX.value = withSpring(0);
       translateY.value = withSpring(0);
       absoluteX.value = withSpring(0);
@@ -102,8 +145,7 @@ const DraggableBoard = ({
 
       repository.showRow(hoverRowItem.current);
       hoverRowItem.current = null;
-    }
-  });
+    })
 
   const listenRowChangeColumn = (fromColumnId, toColumnId) => {
     hoverRowItem.current.columnId = toColumnId;
@@ -257,7 +299,7 @@ const DraggableBoard = ({
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <PanGestureHandler onGestureEvent={onGestureEvent}>
+      <GestureDetector gesture={pan}>
         <Animated.View style={[style.container, boardStyle]}>
           <ScrollView
             ref={scrollViewRef}
@@ -276,7 +318,7 @@ const DraggableBoard = ({
           </ScrollView>
           {renderHoverComponent()}
         </Animated.View>
-      </PanGestureHandler>
+      </GestureDetector>
     </GestureHandlerRootView>
   );
 };
