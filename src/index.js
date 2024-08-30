@@ -8,46 +8,52 @@ import React, {
 import {
   PanGestureHandler,
   State,
-  ScrollView,
 } from 'react-native-gesture-handler';
-import Animated from 'react-native-reanimated';
+import {
+  ScrollView
+} from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+} from 'react-native-reanimated';
 
 import style from './style';
 import Column from './components/column';
 import Repository from './handlers/repository';
 import Utils from './commons/utils';
 
-const { block, call, cond } = Animated;
-
 const SCROLL_THRESHOLD = 50;
 const SCROLL_STEP = 8;
 
 const DraggableBoard = ({
-  repository,
-  renderColumnWrapper,
-  renderRow,
-  columnWidth,
-  accessoryRight,
-  activeRowStyle,
-  activeRowRotation = 8,
-  xScrollThreshold = SCROLL_THRESHOLD,
-  yScrollThreshold = SCROLL_THRESHOLD,
-  dragSpeedFactor = 1,
-  onRowPress = () => { },
-  onDragStart = () => { },
-  onDragEnd = () => { },
-  style: boardStyle,
-  horizontal = true,
-}) => {
+                          repository,
+                          renderColumnWrapper,
+                          renderRow,
+                          columnWidth,
+                          accessoryRight,
+                          activeRowStyle,
+                          activeRowRotation = 8,
+                          xScrollThreshold = SCROLL_THRESHOLD,
+                          yScrollThreshold = SCROLL_THRESHOLD,
+                          dragSpeedFactor = 1,
+                          onRowPress = () => { },
+                          onDragStart = () => { },
+                          onDragEnd = () => { },
+                          style: boardStyle,
+                          horizontal = true,
+                        }) => {
   const [forceUpdate, setForceUpdate] = useState(false);
   const [hoverComponent, setHoverComponent] = useState(null);
   const [movingMode, setMovingMode] = useState(false);
 
-  let translateX = useRef(new Animated.Value(0)).current;
-  let translateY = useRef(new Animated.Value(0)).current;
+  let translateX = useSharedValue(0);
+  let translateY = useSharedValue(0);
 
-  let absoluteX = useRef(new Animated.Value(0)).current;
-  let absoluteY = useRef(new Animated.Value(0)).current;
+  let absoluteX = useSharedValue(0);
+  let absoluteY = useSharedValue(0);
 
   const scrollViewRef = useRef();
   const scrollOffset = useRef(0);
@@ -58,58 +64,47 @@ const DraggableBoard = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onPanGestureEvent = useMemo(
-    () =>
-      Animated.event(
-        [
-          {
-            nativeEvent: {
-              translationX: translateX,
-              translationY: translateY,
-              absoluteX,
-              absoluteY,
-            },
-          },
-        ],
-        { useNativeDriver: true },
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  const onGestureEvent = useAnimatedGestureHandler({
+    onStart: (_, context) => {
+      context.startX = translateX.value;
+      context.startY = translateY.value;
+    },
+    onActive: (event, context) => {
+      translateX.value = context.startX + event.translationX;
+      translateY.value = context.startY + event.translationY;
+      absoluteX.value = event.absoluteX;
+      absoluteY.value = event.absoluteY;
+      runOnJS(handleRowPosition)([
+        translateX.value,
+        translateY.value
+      ]);
+      runOnJS(handleColumnPosition)([
+        absoluteX.value,
+        absoluteY.value
+      ]);
+    },
+    onEnd: () => {
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+      absoluteX.value = withSpring(0);
+      absoluteY.value = withSpring(0);
 
-  const onHandlerStateChange = event => {
-    switch (event.nativeEvent.state) {
-      case State.CANCELLED:
-      case State.END:
-      case State.FAILED:
-      case State.UNDETERMINED:
-        if (movingMode) {
-          translateX.setValue(0);
-          translateY.setValue(0);
+      runOnJS(setHoverComponent)(null);
+      runOnJS(setMovingMode)(false);
 
-          absoluteX.setValue(0);
-          absoluteY.setValue(0);
+      if (onDragEnd) {
+        onDragEnd(
+          hoverRowItem.current.oldColumnId,
+          hoverRowItem.current.columnId,
+          hoverRowItem.current,
+        );
+        repository.updateOriginalData();
+      }
 
-          setHoverComponent(null);
-          setMovingMode(false);
-
-          if (onDragEnd) {
-            onDragEnd(
-              hoverRowItem.current.oldColumnId,
-              hoverRowItem.current.columnId,
-              hoverRowItem.current,
-            );
-
-            repository.updateOriginalData();
-          }
-
-          repository.showRow(hoverRowItem.current);
-          hoverRowItem.current = null;
-        }
-
-        break;
+      repository.showRow(hoverRowItem.current);
+      hoverRowItem.current = null;
     }
-  };
+  });
 
   const listenRowChangeColumn = (fromColumnId, toColumnId) => {
     hoverRowItem.current.columnId = toColumnId;
@@ -173,25 +168,32 @@ const DraggableBoard = ({
     [],
   );
 
+  const animatedHoverStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { rotate: `${activeRowRotation}deg` }
+      ]
+    };
+  });
+
   const renderHoverComponent = () => {
     if (hoverComponent && hoverRowItem.current) {
-      
       const row = repository.findRow(hoverRowItem.current);
-      
+
       if (row && row.layout) {
         const { x, y, width, height } = row.layout;
         const hoverStyle = [
           style.hoverComponent,
           activeRowStyle,
           {
-            transform: [{ translateX }, { translateY }, { rotate: `${activeRowRotation}deg` }],
-          },
-          {
             top: y - yScrollThreshold,
             left: x,
             width,
             height,
           },
+          animatedHoverStyle,
         ];
 
         return (
@@ -255,9 +257,7 @@ const DraggableBoard = ({
   };
 
   return (
-    <PanGestureHandler
-      onGestureEvent={onPanGestureEvent}
-      onHandlerStateChange={onHandlerStateChange}>
+    <PanGestureHandler onGestureEvent={onGestureEvent}>
       <Animated.View style={[style.container, boardStyle]}>
         <ScrollView
           ref={scrollViewRef}
@@ -271,21 +271,6 @@ const DraggableBoard = ({
           onScrollEndDrag={onScrollEnd}
           onMomentumScrollEnd={onScrollEnd}>
           {renderColumns()}
-
-          <Animated.Code>
-            {() =>
-              block([
-                cond(
-                  movingMode,
-                  call([absoluteX, absoluteY], handleRowPosition),
-                ),
-                cond(
-                  movingMode,
-                  call([translateX, translateY], handleColumnPosition),
-                ),
-              ])
-            }
-          </Animated.Code>
 
           {Utils.isFunction(accessoryRight) ? accessoryRight() : accessoryRight}
         </ScrollView>
