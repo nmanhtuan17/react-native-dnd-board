@@ -2,12 +2,11 @@ import React, {
   useRef,
   useState,
   useCallback,
-  useMemo,
   useEffect,
 } from 'react';
 import {
   PanGestureHandler,
-  State,
+  GestureHandlerRootView
 } from 'react-native-gesture-handler';
 import {
   ScrollView
@@ -257,26 +256,28 @@ const DraggableBoard = ({
   };
 
   return (
-    <PanGestureHandler onGestureEvent={onGestureEvent}>
-      <Animated.View style={[style.container, boardStyle]}>
-        <ScrollView
-          ref={scrollViewRef}
-          scrollEnabled={!movingMode}
-          horizontal={horizontal}
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          showsVerticalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={onScroll}
-          onScrollEndDrag={onScrollEnd}
-          onMomentumScrollEnd={onScrollEnd}>
-          {renderColumns()}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <PanGestureHandler onGestureEvent={onGestureEvent}>
+        <Animated.View style={[style.container, boardStyle]}>
+          <ScrollView
+            ref={scrollViewRef}
+            scrollEnabled={!movingMode}
+            horizontal={horizontal}
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={onScroll}
+            onScrollEndDrag={onScrollEnd}
+            onMomentumScrollEnd={onScrollEnd}>
+            {renderColumns()}
 
-          {Utils.isFunction(accessoryRight) ? accessoryRight() : accessoryRight}
-        </ScrollView>
-        {renderHoverComponent()}
-      </Animated.View>
-    </PanGestureHandler>
+            {Utils.isFunction(accessoryRight) ? accessoryRight() : accessoryRight}
+          </ScrollView>
+          {renderHoverComponent()}
+        </Animated.View>
+      </PanGestureHandler>
+    </GestureHandlerRootView>
   );
 };
 
